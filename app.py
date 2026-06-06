@@ -58,20 +58,57 @@ else:
     if page == "タスク一覧":
         st.subheader("📝 未完了のタスク")
 
-        col_input, col_date = st.columns([0.7, 0.3])
-        with col_input:
-            new_todo = st.text_input("新しいタスクを入力してEnter:", placeholder="例：期日までに提出する")
-        with col_date:
-            todo_date = st.date_input("期限", value=date.today())
-        
-        if "last_todo" not in st.session_state:
-            st.session_state.last_todo = ""
+        # --- 1. 編集モード用のセッション状態を初期化 ---
+        if "editing_todo" not in st.session_state:
+            st.session_state.editing_todo = None
 
-        if new_todo and new_todo != st.session_state.last_todo:
-            db.add_todo(user_id, new_todo, todo_date)
-            st.session_state.last_todo = new_todo
-            st.rerun()
+        # --- 2. 【新規追加フォーム】通常時のみ表示 ---
+        if st.session_state.editing_todo is None:
+            col_input, col_date = st.columns([0.7, 0.3])
+            with col_input:
+                new_todo = st.text_input("新しいタスクを入力してEnter:", placeholder="例：期日までに提出する", key="add_input")
+            with col_date:
+                todo_date = st.date_input("期限", value=date.today(), key="add_date")
+            
+            if "last_todo" not in st.session_state:
+                st.session_state.last_todo = ""
 
+            if new_todo and new_todo != st.session_state.last_todo:
+                db.add_todo(user_id, new_todo, todo_date)
+                st.session_state.last_todo = new_todo
+                st.rerun()
+
+        # --- 3. 【復活！ 編集フォーム】編集ボタンが押されたときだけ出現 ---
+        else:
+            st.info("🔄 タスクを編集しています")
+            edit_id, edit_task, edit_deadline_str = st.session_state.editing_todo
+            
+            from datetime import datetime
+            try:
+                default_date = datetime.strptime(edit_deadline_str, "%Y-%m-%d").date()
+            except:
+                default_date = date.today()
+
+            col_edit_input, col_edit_date = st.columns([0.7, 0.3])
+            with col_edit_input:
+                up_task = st.text_input("タスク内容を修正:", value=edit_task, key="edit_input")
+            with col_edit_date:
+                up_date = st.date_input("期限を修正:", value=default_date, key="edit_date")
+            
+            col_btn1, col_btn2, _ = st.columns([0.15, 0.15, 0.7])
+            with col_btn1:
+                if st.button("保存", key="save_edit_btn"):
+                    db.update_todo_content(edit_id, up_task, up_date)
+                    st.session_state.editing_todo = None  # 編集モード終了
+                    st.success("修正しました！")
+                    st.rerun()
+            with col_btn2:
+                if st.button("キャンセル", key="cancel_edit_btn"):
+                    st.session_state.editing_todo = None  # 編集モード終了
+                    st.rerun()
+            st.write("---") # 区切り線
+
+        # --- 4. タスク一覧の表示（お気に入りのデザイン） ---
         todos = db.get_todos(user_id, is_done=False)
         if not todos:
             st.info("現在タスクはありません。")
@@ -81,15 +118,15 @@ else:
             for todo_id, task, deadline in todos:
                 is_overdue = deadline < today_str if deadline else False
                 
-                # --- 【要件】期限を過ぎていたらアイコン（絵文字）と赤文字にする ---
+                # 期限を過ぎていたらアイコン（絵文字）と赤文字にする
                 if is_overdue:
                     icon = "⚠️ "
-                    text_style = "color: #ff4b4b; font-weight: bold;"  # Streamlitの標準アクセント赤
+                    text_style = "color: #ff4b4b; font-weight: bold;"
                 else:
                     icon = ""
                     text_style = "color: #212529;"
                 
-                # 複雑なHTMLの囲みはやめて、Streamlitの標準コンテナ（枠線付き）に戻す
+                # 標準コンテナ（枠線付き）
                 with st.container(border=True):
                     col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
                     
@@ -100,7 +137,6 @@ else:
                         with col_cb:
                             is_checked = st.checkbox("", key=f"todo_{todo_id}")
                         with col_txt:
-                            # テキスト部分だけ安全に色と絵文字を適用
                             st.markdown(f'<p style="{text_style} margin: 0; padding-top: 3px;">{display_text}</p>', unsafe_allow_html=True)
                             
                         if is_checked:
@@ -117,7 +153,6 @@ else:
                             if st.session_state.editing_todo and st.session_state.editing_todo[0] == todo_id:
                                 st.session_state.editing_todo = None
                             st.rerun()
-            
             
     elif page == "実行済みリスト":
         st.subheader("✅ 完了したタスク")

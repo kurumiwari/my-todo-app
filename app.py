@@ -24,7 +24,7 @@ def init_db():
 init_db()
 
 # --- 2. 画面タイトルとナビゲーション ---
-st.title("進化版 ToDo アプリ 🚀")
+st.title("簡易 ToDo アプリ 🚀")
 
 # サイドバーでページの切り替え
 page = st.sidebar.radio("メニュー", ["タスク一覧", "実行済みリスト"])
